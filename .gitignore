@@ -14,3 +14,7 @@ cabal.sandbox.config
 *.prof
 *.aux
 *.hp
+.DS_Store
+TAGS
+tags
+
