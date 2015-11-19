@@ -1,5 +1,8 @@
 dist
 cabal-dev
+post
+_config.yml
+.gin/
 *.o
 *.hi
 *.chi
