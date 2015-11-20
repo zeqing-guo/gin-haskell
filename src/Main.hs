@@ -9,6 +9,7 @@ This file providing command-line argument parsing
 -}
 
 module Main where
+import           Control.Monad
 import           Data.Time
 import           System.Directory
 import           System.Environment
@@ -16,41 +17,38 @@ import           System.Environment
 main :: IO ()
 main = do args <- getArgs
           case args of
-            ["init"] -> initBlog
+            ["init", blogName] -> initBlog blogName
             ["commit"] -> putStrLn "commit"
             ["help"] -> putStrLn "help"
             ["new", postName] -> initPost postName
             xs -> putStrLn $ "gin: unrecognised command: " ++ concatMap (++ " ") xs ++ "(try help)"
 
 -- |Create some files and dirctories for new blog
-initBlog :: IO ()
-initBlog = do let config = "_config.yml"
-                  post = "post/"
-                  example = "post/hello-world.md"
-                  gin = ".gin/"
-              isConfigExist <- doesFileExist config
-              now <- getZonedTime
-              if isConfigExist
-                 then putStrLn "Error: _config.yml already exists!"
-                 else do putStrLn "Creating post (post/) directory..."
-                         createDirectoryIfMissing True post
-                         putStrLn "Creating system (.gin/) directory..."
-                         createDirectoryIfMissing True gin
-                         putStrLn "Creating _config.yml file..."
-                         writeFile config configTemplate
-                         putStrLn "Creating post/hello-world.md..."
-                         writeFile example (exampleTemplate $ show now)
-                         putStrLn "Finish!"
+initBlog :: String -> IO ()
+initBlog blogName = do let config = blogName ++ "/_config.yml"
+                           post = blogName ++ "post/"
+                           example = post ++ "hello-world.md"
+                           gin = blogName ++ "/.gin/"
+                       now <- getZonedTime
+                       currentDirectory <- liftM (++ "/") getCurrentDirectory
+                       isConfigExist <- doesDirectoryExist blogName
+                       if isConfigExist
+                         then putStrLn $ "Error:" ++ currentDirectory ++ blogName ++ "already exists!"
+                         else do putStrLn $ "Copying data to " ++ currentDirectory ++ blogName
+                                 createDirectoryIfMissing True post
+                                 createDirectoryIfMissing True gin
+                                 writeFile config configTemplate
+                                 writeFile example (exampleTemplate $ show now)
 
 initPost :: String -> IO ()
 initPost postName = do now <- getZonedTime
+                       currentDirectory <- liftM (++ "/") getCurrentDirectory
                        let thisPostName = "post/" ++ show (utctDay $ zonedTimeToUTC now) ++ " " ++ postName ++ ".md"
                        isPostExist <- doesFileExist thisPostName
                        if isPostExist
-                          then putStrLn $ "Error: " ++ thisPostName ++ " already exists!"
-                          else do putStrLn $ "Creating \"" ++ thisPostName ++ "\"..."
-                                  writeFile thisPostName $ newPostTemplate postName $ show now
-                                  putStrLn "Finish!"
+                          then putStrLn $ "Error: " ++ currentDirectory ++ thisPostName ++ " already exists!"
+                          else do writeFile thisPostName $ newPostTemplate postName $ show now
+                                  putStrLn $ "Created: " ++ currentDirectory ++ thisPostName
 
 configTemplate :: String
 configTemplate = "# A token get from github to allow gin create issues, push to repository\ngithub_token: your token"
