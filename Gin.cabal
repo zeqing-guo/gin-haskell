@@ -60,7 +60,11 @@ executable Gin
   other-extensions:    ScopedTypeVariables, RankNTypes, BangPatterns, ViewPatterns, ForeignFunctionInterface
   
   -- Other library packages from which modules are imported.
+<<<<<<< HEAD
   build-depends:       base >=4.8, time >=1.5, directory >=1.2, bytestring >=0.10, filepath >=1.4, process >=1.2, unix >=2.7, ghc-paths >=0.1, yaml >=0.8
+=======
+  build-depends:       base >=4.8, time >=1.5, directory >=1.2
+>>>>>>> 8462d5892fec2e0bc023144fbdef0a41508b0053
   
   -- Directories containing source files.
   hs-source-dirs:      src
