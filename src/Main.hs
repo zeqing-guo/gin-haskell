@@ -51,7 +51,7 @@ initPost postName = do now <- getZonedTime
                                   putStrLn $ "Created: " ++ currentDirectory ++ thisPostName
 
 configTemplate :: String
-configTemplate = "# A token get from github to allow gin create issues, push to repository\ngithub_token: your token"
+configTemplate = "# A token get from github to allow gin create issues, push to repository\ngithub_token: your token\ncopyright: your copyright statement"
 
 exampleTemplate :: String -> String
 exampleTemplate now = "---\ntitle: \"Hello World!\"\ndate: "
