@@ -111,13 +111,6 @@ parseContent = do
   y <- anyChar
   xs <- many (noneOf "!${")
   return $ Content $ T.pack (x : y : xs)
--- parseContent = (Content . T.pack) <$>
---                manyTill anyChar (try parsePicture
---                                  <|> try parseInlineEquation
---                                  <|> try parseOutlineEquation
---                                  <|> try parseLiquid)
-parseContent' :: Parser MarkdownPlus
-parseContent' = Content . T.pack <$> many anyChar
 
 parseMarkdownPlus :: Parser [MarkdownPlus]
 parseMarkdownPlus = many $ try parsePicture
@@ -125,11 +118,6 @@ parseMarkdownPlus = many $ try parsePicture
                            <|> try parseOutlineEquation
                            <|> try parseLiquid
                            <|> try parseContent
-
--- readOrThrow :: Parser a -> String -> ThrowsError a
--- readOrThrow parser input = case parse parser "gin" input of
---   Left err -> throwError $ Parse err
---   Right val -> return val
 
 readFrontMatter :: String -> Either ParseError [FrontMatter]
 readFrontMatter = parse parseFrontMatter "gin"
@@ -140,7 +128,7 @@ readMarkdownPlus = parse parseMarkdownPlus "gin"
 readPost :: String -> ThrowsError Post
 readPost post = case B.breakSubstring (B.pack "---\n") (B.pack post) of
   ("", rest) -> case B.breakSubstring (B.pack "---\n") (B.drop 4 rest) of
-    ("", _) -> throwError $ Parser "Nothing find in front matter."
+    ("", _) -> throwError $ Parser "nothing find in front matter"
     (fm, mp) -> case readFrontMatter $ B.unpack fm of
       Left err -> throwError $ Parser $ show err
       Right fms -> case readMarkdownPlus $ B.unpack mp of
