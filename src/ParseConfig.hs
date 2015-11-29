@@ -1,5 +1,18 @@
+{- |
+Module      : ParseConfig
+Copyright   : Zeqing Guo
+Licence     : MIT (see LICENSE in the distribution)
+Maintainer  : github.com/zeqing-guo
+Stability   : experimental
+Portability : portable
+This file parse _config.yml file and get the configuration of blog.
+-}
+
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+module ParseConfig ( Config(..)
+                   , parseConfig) where 
 
 import qualified Data.Text    as T
 import           Data.Yaml

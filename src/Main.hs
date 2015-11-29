@@ -8,6 +8,8 @@ Portability : portable
 This file providing command-line argument parsing
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 import           Control.Monad
 import           Data.Time
@@ -51,7 +53,7 @@ initPost postName = do now <- getZonedTime
                                   putStrLn $ "Created: " ++ currentDirectory ++ thisPostName
 
 configTemplate :: String
-configTemplate = "# A token get from github to allow gin create issues, push to repository\ngithub_token: your token\ncopyright: your copyright statement"
+configTemplate = "github_token: your token\ncopyright: your copyright statement\n"
 
 exampleTemplate :: String -> String
 exampleTemplate now = "---\ntitle: \"Hello World!\"\ndate: "
