@@ -12,13 +12,13 @@ This file parse _config.yml file and get the configuration of blog.
 {-# LANGUAGE OverloadedStrings #-}
 
 module ParseConfig ( Config(..)
-                   , parseConfig) where 
+                   , parseConfig) where
 
 import qualified Data.Text    as T
 import           Data.Yaml
 import           GHC.Generics
 
-data Config = Config {github_token :: T.Text, copyright :: T.Text}
+data Config = Config {github_token :: T.Text, github_repo :: T.Text, copyright :: Maybe T.Text}
             deriving (Show, Generic)
 
 instance FromJSON Config

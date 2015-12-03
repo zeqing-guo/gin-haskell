@@ -16,21 +16,27 @@ import           Data.Time
 import           System.Directory
 import           System.Environment
 
+import qualified GinConfig          as GC
+
+import           Controller
+
 main :: IO ()
 main = do args <- getArgs
           case args of
-            ["init", blogName] -> initBlog blogName
-            ["commit"] -> putStrLn "commit"
+            ["init", blogName] -> initBlog $ blogName ++ "/"
+            ["commit"] -> commitPosts
             ["help"] -> putStrLn "help"
             ["new", postName] -> initPost postName
             xs -> putStrLn $ "gin: unrecognised command: " ++ concatMap (++ " ") xs ++ "(try help)"
 
 -- |Create some files and dirctories for new blog
 initBlog :: String -> IO ()
-initBlog blogName = do let config = blogName ++ "/_config.yml"
-                           post = blogName ++ "post/"
-                           example = post ++ "hello-world.md"
-                           gin = blogName ++ "/.gin/"
+initBlog blogName = do let config = blogName ++ GC.configFile
+                           post = blogName ++ GC.postDirectory
+                           example = blogName ++ GC.postExample
+                           gin = blogName ++ GC.ginConfig
+                           ginRecordFile = blogName ++ GC.ginRecordFile
+                       putStrLn ginRecordFile
                        now <- getZonedTime
                        currentDirectory <- liftM (++ "/") getCurrentDirectory
                        isConfigExist <- doesDirectoryExist blogName
@@ -39,13 +45,14 @@ initBlog blogName = do let config = blogName ++ "/_config.yml"
                          else do putStrLn $ "Copying data to " ++ currentDirectory ++ blogName
                                  createDirectoryIfMissing True post
                                  createDirectoryIfMissing True gin
+                                 writeFile ginRecordFile "DO NOT MODIFY IT!"
                                  writeFile config configTemplate
                                  writeFile example (exampleTemplate $ show now)
 
 initPost :: String -> IO ()
 initPost postName = do now <- getZonedTime
                        currentDirectory <- liftM (++ "/") getCurrentDirectory
-                       let thisPostName = "post/" ++ show (utctDay $ zonedTimeToUTC now) ++ " " ++ postName ++ ".md"
+                       let thisPostName = GC.postDirectory ++ show (utctDay $ zonedTimeToUTC now) ++ " " ++ postName ++ ".md"
                        isPostExist <- doesFileExist thisPostName
                        if isPostExist
                           then putStrLn $ "Error: " ++ currentDirectory ++ thisPostName ++ " already exists!"

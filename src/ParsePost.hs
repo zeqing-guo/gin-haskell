@@ -11,12 +11,12 @@ This file parse posts.
 {-# LANGUAGE OverloadedStrings #-}
 
 module ParsePost where
+import           Control.Monad.Error
 import qualified Data.ByteString.Char8         as B
 import           Data.Char
 import qualified Data.Text                     as T
+import           Exception
 import           Text.ParserCombinators.Parsec
-import Control.Monad.Error
-import Exception
 
 data FrontMatter = Title B.ByteString
                  | Time B.ByteString
@@ -31,7 +31,7 @@ data MarkdownPlus = Content T.Text
                   deriving (Show)
 
 data Post = Post {
-  frontMatter :: [FrontMatter],
+  frontMatter  :: [FrontMatter],
   markdownPlus :: [MarkdownPlus]
   } deriving (Show)
 
@@ -71,7 +71,7 @@ parseTag = do string "tag:"
                     return $ Prelude.map B.pack xs
 
 parseFrontMatter :: Parser [FrontMatter]
-parseFrontMatter = many1 (try parseTitle <|> parseTime <|> parseTag) 
+parseFrontMatter = many1 (try parseTitle <|> parseTime <|> parseTag)
 
 parsePicture :: Parser MarkdownPlus
 parsePicture = do
@@ -108,9 +108,8 @@ parseLiquid = do
 parseContent :: Parser MarkdownPlus
 parseContent = do
   x <- anyChar
-  y <- anyChar
   xs <- many (noneOf "!${")
-  return $ Content $ T.pack (x : y : xs)
+  return $ Content $ T.pack (x : xs)
 
 parseMarkdownPlus :: Parser [MarkdownPlus]
 parseMarkdownPlus = many $ try parsePicture
@@ -139,9 +138,9 @@ readPost post = case B.breakSubstring (B.pack "---\n") (B.pack post) of
 --------------------- Test -------------------------------------
 
 exampleTemplate :: String
-exampleTemplate = "---\ntitle: Hello World!\ndate: 2015.11.29\ntag:\n- Blog\n- Example\n---\nGin is a static blog generator helping you publish your blog to your repository's issues on Github.\nNow, let's have a glance at the basic styles: [link](https://github.com/zeqing-guo/gin-haskell),\n**strong**, *italic*, <del>deletion</del>, <ins>insertion</ins>.\n<hr>\n# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6\n- list item 1\n- list item 2\n- list item 3\n1. list item 1\n2. list item 2\n3. list item 3\n> Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n![](/images/image.png)\n<table>\n    <thead>\n        <tr>\n            <th>Name</th>\n            <th>Age</th>\n            <th>Fruit</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>Alex</td>\n            <td>22</td>\n            <td>Apple</td>\n        </tr>\n        <tr>\n            <td>Bran</td>\n            <td>20</td>\n            <td>Orange</td>\n        </tr>\n        <tr>\n            <td>Mike</td>\n            <td>21</td>\n            <td>Waltermelon</td>\n        </tr>\n    </tbody>\n</table>\n```haskell\n-- Hello.hs\nmain :: IO ()\nmain = putStrLn \"Hello World!\"\n```\n{{copyright}}"
+exampleTemplate = "---\ntitle: Hello World!\ndate: 2015.11.29\ntag:\n- Blog\n- Example\n---\nGin is a static blog generator helping you publish your blog to your repository's issues on Github.\nNow, let's have a glance at the basic styles: [link](https://github.com/zeqing-guo/gin-haskell),\n**strong**, *italic*, <del>deletion</del>, <ins>insertion</ins>.\n<hr>\n# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6\n- list item 1\n- list item 2\n- list item 3\n1. list item 1\n2. list item 2\n3. list item 3\n> Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n![](/images/image.png)\n<table>\n    <thead>\n        <tr>\n            <th>Name</th>\n            <th>Age</th>\n            <th>Fruit</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>Alex</td>\n            <td>22</td>\n            <td>Apple</td>\n        </tr>\n        <tr>\n            <td>Bran</td>\n            <td>20</td>\n            <td>Orange</td>\n        </tr>\n        <tr>\n            <td>Mike</td>\n            <td>21</td>\n            <td>Waltermelon</td>\n        </tr>\n    </tbody>\n</table>\n```haskell\n-- Hello.hs\nmain :: IO ()\nmain = putStrLn \"Hello World!\"\n```\n{{copyright}}!"
 
 test = case B.breakSubstring (B.pack "---\n") (B.pack exampleTemplate) of
   ("", rest) -> case B.breakSubstring (B.pack "---") (B.drop 4 rest) of
-    -- (fm, mp) -> readFrontMatter $ B.unpack fm 
+    -- (fm, mp) -> readFrontMatter $ B.unpack fm
     (fm, mp) -> readMarkdownPlus (B.unpack $ B.drop 4 mp)
