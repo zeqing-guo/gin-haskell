@@ -10,137 +10,161 @@ This file parse posts.
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module ParsePost where
-import           Control.Monad.Error
-import qualified Data.ByteString.Char8         as B
-import           Data.Char
-import qualified Data.Text                     as T
-import           Exception
-import           Text.ParserCombinators.Parsec
+module ParsePost (Post(..)
+                 , FrontMatter(..)
+                 , MarkdownPlus(..)
+                 , parsePost) where
 
-data FrontMatter = Title B.ByteString
-                 | Time B.ByteString
-                 | Tag [B.ByteString]
+import           Control.Applicative
+import           Control.Monad.Error
+
+import qualified Data.Text            as T
+
+import           Data.Attoparsec.Text
+
+import           Prelude              hiding (takeWhile)
+
+data FrontMatter = FrontMatter {title :: T.Text
+                               , date :: T.Text
+                               , tag  :: [T.Text]}
                  deriving (Show)
 
 data MarkdownPlus = Content T.Text
-                  | Picture {alt :: T.Text, path :: T.Text, title :: T.Text}
+                  | Picture {picAlt :: T.Text, picPath :: T.Text, picTitle :: T.Text}
                   | InlineEquation T.Text
                   | OutlineEquation T.Text
                   | Liquid T.Text
                   deriving (Show)
 
-data Post = Post {
-  frontMatter  :: [FrontMatter],
-  markdownPlus :: [MarkdownPlus]
-  } deriving (Show)
+data Post = Post {frontMatter  :: FrontMatter,
+                  markdownPlus :: [MarkdownPlus]}
+          deriving (Show)
 
-notSpace :: Parser Char
-notSpace = satisfy $ not . isSpace
+parsePost :: Parser Post
+parsePost = Post
+            <$ string "---\n"
+            <*> parseFrontMatter <* string "---\n"
+            <*> parseMarkdownPlus
 
-notChar :: Char -> Parser Char
-notChar c = satisfy (/= c)
 
-parseTitle :: Parser FrontMatter
-parseTitle = do string "title:" *> spaces
-                str <- many (noneOf "\n\r")
-                spaces
-                return $ Title $ B.pack str
+parseTitle :: Parser T.Text
+parseTitle = T.stripEnd <$ string "title:" <* takeWhile (== ' ') <*> takeWhile1 (/= '\n')
 
-parseTime :: Parser FrontMatter
-parseTime = do string "date:"
-               spaces
-               str <- many (noneOf "\n\r")
-               spaces
-               return $ Title $ B.pack str
+parseTime :: Parser T.Text
+parseTime = T.stripEnd <$ string "date:" <* takeWhile (== ' ') <*> takeWhile1 (/= '\n')
 
-parseTag :: Parser FrontMatter
-parseTag = do string "tag:"
-              spaces
-              xs <- commaList <|> hyphenList
-              return $ Tag xs
-                where
-                  hyphenList :: Parser [B.ByteString]
-                  hyphenList = do
-                    xs <- many1 (char '-' >> many1 space >> many notSpace <* spaces)
-                    return $ Prelude.map B.pack xs
-                  commaList :: Parser [B.ByteString]
-                  commaList = do
-                    char '[' >> spaces
-                    xs <- sepBy (many $ noneOf ", \t\n\r\f\v") spaces
-                    return $ Prelude.map B.pack xs
+parseTags :: Parser [T.Text]
+parseTags = map T.strip <$ string "tags:" <* takeWhile (== ' ') <*> (parseInline <|> parseBlock)
+            where
+              parseInline = char '['
+                            *> sepBy (takeWhile1 (\c -> c /= ',' && c /= ']')) (char ',')
+                            <* char ']'
+                            <* takeWhile (== ' ')
+                            <* char '\n'
+              parseBlock = takeWhile (== ' ')
+                           *> char '\n'
+                           *> takeWhile (== ' ')
+                           *> char '-'
+                           *> takeWhile (== ' ')
+                           *> sepBy (takeWhile1 (/= '\n')
+                                     <* char '\n')
+                                    (T.append
+                                     <$> takeWhile (== ' ')
+                                     <*> (T.cons
+                                     <$> char '-'
+                                     <*> takeWhile1 (== ' ')))
 
-parseFrontMatter :: Parser [FrontMatter]
-parseFrontMatter = many1 (try parseTitle <|> parseTime <|> parseTag)
+parseNone :: Parser [T.Text]
+parseNone = (string "tags" <* takeWhile (== ' ') <* char '\n'
+             <|> takeWhile (\c -> c == ' ' || c == '\n')) *> return []
+
+parseFrontMatter :: Parser FrontMatter
+parseFrontMatter = FrontMatter <$> parseTitle <* takeWhile1 (\c -> c == ' ' || c == '\n')
+                               <*> parseTime <* takeWhile1 (\c -> c == ' ' || c == '\n')
+                               <*> (try parseTags <|> parseNone)
+
 
 parsePicture :: Parser MarkdownPlus
-parsePicture = do
-  string "!["
-  alt <- many (notChar ']')
-  string "]("
-  path <- many1 (noneOf " )") <|> string "\\ "
-  many (char ' ')
-  title <- many (notChar ')')
-  char ')'
-  return $ Picture (T.pack alt) (T.pack path) (T.pack title)
+parsePicture = Picture <$ string "!["
+                       <*> takeWhile (/= ']')
+                       <* string "]("
+                       <*> (T.stripEnd
+                            <$> takeWhile1 (\c -> c /= '"' && c /= ')'))
+                       <*> (try (char ')' *> return "")
+                            <|> char '"'
+                                *> takeWhile (/= '"')
+                                <* takeWhile (/= ' ')
+                                <* char ')')
+plusGrammar :: (T.Text -> MarkdownPlus)
+            -> Parser a
+            -> Parser a
+            -> Parser MarkdownPlus
+plusGrammar f l r = f . T.pack <$ l <*> manyTill anyChar r
 
 parseInlineEquation :: Parser MarkdownPlus
-parseInlineEquation = do
-  char '$'
-  equation <- many1 (notChar '$') <|> string "\\$"
-  char '$'
-  return $ InlineEquation $ T.pack equation
+parseInlineEquation = plusGrammar InlineEquation (char '$') (char '$')
 
 parseOutlineEquation :: Parser MarkdownPlus
-parseOutlineEquation = do
-  string "$$"
-  equation <- many1 (notChar '$') <|> string "\\$"
-  string "$$"
-  return $ OutlineEquation $ T.pack equation
+parseOutlineEquation = plusGrammar OutlineEquation (string "$$") (string "$$")
 
 parseLiquid :: Parser MarkdownPlus
-parseLiquid = do
-  string "{{"
-  xs <- many (noneOf "{}")
-  string "}}"
-  return $ Liquid $ T.pack xs
+parseLiquid = plusGrammar Liquid (string "{{") (string "}}")
 
 parseContent :: Parser MarkdownPlus
-parseContent = do
-  x <- anyChar
-  xs <- many (noneOf "!${")
-  return $ Content $ T.pack (x : xs)
+parseContent = Content <$> (T.cons
+                            <$> anyChar
+                            <*> takeWhile (\c -> c /= '!'
+                                                 && c /= '$'
+                                                 && c /= '{'))
 
 parseMarkdownPlus :: Parser [MarkdownPlus]
 parseMarkdownPlus = many $ try parsePicture
                            <|> try parseInlineEquation
                            <|> try parseOutlineEquation
                            <|> try parseLiquid
-                           <|> try parseContent
+                           <|> parseContent
 
-readFrontMatter :: String -> Either ParseError [FrontMatter]
-readFrontMatter = parse parseFrontMatter "gin"
+-- notSpace :: Parser Char
+-- notSpace = satisfy $ not . isSpace
 
-readMarkdownPlus :: String -> Either ParseError [MarkdownPlus]
-readMarkdownPlus = parse parseMarkdownPlus "gin"
+-- notChar :: Char -> Parser Char
+-- notChar c = satisfy (/= c)
 
-readPost :: String -> ThrowsError Post
-readPost post = case B.breakSubstring (B.pack "---\n") (B.pack post) of
-  ("", rest) -> case B.breakSubstring (B.pack "---\n") (B.drop 4 rest) of
-    ("", _) -> throwError $ Parser "nothing find in front matter"
-    (fm, mp) -> case readFrontMatter $ B.unpack fm of
-      Left err -> throwError $ Parser $ show err
-      Right fms -> case readMarkdownPlus $ B.unpack mp of
-        Left err -> throwError $ Parser $ show err
-        Right mps -> return $ Post fms mps
-  _ -> throwError $ Parser "\"gin\" (line 1):\nexpecting \"---\""
+-- parseContent :: Parser MarkdownPlus
+-- parseContent = do
+--   x <- anyChar
+--   xs <- many (noneOf "!${")
+--   return $ Content $ T.pack (x : xs)
 
---------------------- Test -------------------------------------
+
+-- readFrontMatter :: String -> Either ParseError [FrontMatter]
+-- readFrontMatter = parse parseFrontMatter "gin"
+
+-- readMarkdownPlus :: String -> Either ParseError [MarkdownPlus]
+-- readMarkdownPlus = parse parseMarkdownPlus "gin"
+
+-- readPost :: String -> ThrowsError Post
+-- readPost post = case B.breakSubstring (B.pack "---\n") (B.pack post) of
+--   ("", rest) -> case B.breakSubstring (B.pack "---\n") (B.drop 4 rest) of
+--     ("", _) -> throwError $ Parser "nothing find in front matter"
+--     (fm, mp) -> case readFrontMatter $ B.unpack fm of
+--       Left err -> throwError $ Parser $ show err
+--       Right fms -> case readMarkdownPlus $ B.unpack mp of
+--         Left err -> throwError $ Parser $ show err
+--         Right mps -> return $ Post fms mps
+--   _ -> throwError $ Parser "\"gin\" (line 1):\nexpecting \"---\""
+
+-- --------------------- Test -------------------------------------
 
 exampleTemplate :: String
-exampleTemplate = "---\ntitle: Hello World!\ndate: 2015.11.29\ntag:\n- Blog\n- Example\n---\nGin is a static blog generator helping you publish your blog to your repository's issues on Github.\nNow, let's have a glance at the basic styles: [link](https://github.com/zeqing-guo/gin-haskell),\n**strong**, *italic*, <del>deletion</del>, <ins>insertion</ins>.\n<hr>\n# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6\n- list item 1\n- list item 2\n- list item 3\n1. list item 1\n2. list item 2\n3. list item 3\n> Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n![](/images/image.png)\n<table>\n    <thead>\n        <tr>\n            <th>Name</th>\n            <th>Age</th>\n            <th>Fruit</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>Alex</td>\n            <td>22</td>\n            <td>Apple</td>\n        </tr>\n        <tr>\n            <td>Bran</td>\n            <td>20</td>\n            <td>Orange</td>\n        </tr>\n        <tr>\n            <td>Mike</td>\n            <td>21</td>\n            <td>Waltermelon</td>\n        </tr>\n    </tbody>\n</table>\n```haskell\n-- Hello.hs\nmain :: IO ()\nmain = putStrLn \"Hello World!\"\n```\n{{copyright}}!"
+exampleTemplate = "---\ntitle: Hello World!\ndate: 2015.11.29\ntags:\n- Blog\n- Example\n---\nGin is a static blog generator helping you publish your blog to your repository's issues on Github.\nNow, let's have a glance at the basic styles: [link](https://github.com/zeqing-guo/gin-haskell),\n**strong**, *italic*, <del>deletion</del>, <ins>insertion</ins>.\n<hr>\n# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6\n- list item 1\n- list item 2\n- list item 3\n1. list item 1\n2. list item 2\n3. list item 3\n> Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n![](/images/image.png)\n<table>\n    <thead>\n        <tr>\n            <th>Name</th>\n            <th>Age</th>\n            <th>Fruit</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>Alex</td>\n            <td>22</td>\n            <td>Apple</td>\n        </tr>\n        <tr>\n            <td>Bran</td>\n            <td>20</td>\n            <td>Orange</td>\n        </tr>\n        <tr>\n            <td>Mike</td>\n            <td>21</td>\n            <td>Waltermelon</td>\n        </tr>\n    </tbody>\n</table>\n```haskell\n-- Hello.hs\nmain :: IO ()\nmain = putStrLn \"Hello World!\"\n```\n{{copyright}}!"
 
-test = case B.breakSubstring (B.pack "---\n") (B.pack exampleTemplate) of
-  ("", rest) -> case B.breakSubstring (B.pack "---") (B.drop 4 rest) of
-    -- (fm, mp) -> readFrontMatter $ B.unpack fm
-    (fm, mp) -> readMarkdownPlus (B.unpack $ B.drop 4 mp)
+exampleFM :: String
+exampleFM = "title: Hello World!\ndate: 2015.11.29\ntags:\n- Blog\n- Example\n"
+
+exampleBody :: String
+exampleBody = "Gin is a static blog generator helping you publish your blog to your repository's issues on Github.\nNow, let's have a glance at the basic styles: [link](https://github.com/zeqing-guo/gin-haskell),\n**strong**, *italic*, <del>deletion</del>, <ins>insertion</ins>.\n<hr>\n# Header 1\n## Header 2\n### Header 3\n#### Header 4\n##### Header 5\n###### Header 6\n- list item 1\n- list item 2\n- list item 3\n1. list item 1\n2. list item 2\n3. list item 3\n> Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n![](/images/image.png)\n<table>\n    <thead>\n        <tr>\n            <th>Name</th>\n            <th>Age</th>\n            <th>Fruit</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td>Alex</td>\n            <td>22</td>\n            <td>Apple</td>\n        </tr>\n        <tr>\n            <td>Bran</td>\n            <td>20</td>\n            <td>Orange</td>\n        </tr>\n        <tr>\n            <td>Mike</td>\n            <td>21</td>\n            <td>Waltermelon</td>\n        </tr>\n    </tbody>\n</table>\n```haskell\n-- Hello.hs\nmain :: IO ()\nmain = putStrLn \"Hello World!\"\n```\n{{copyright}}!"
+-- test = case B.breakSubstring (B.pack "---\n") (B.pack exampleTemplate) of
+--   ("", rest) -> case B.breakSubstring (B.pack "---") (B.drop 4 rest) of
+--     -- (fm, mp) -> readFrontMatter $ B.unpack fm
+--     (fm, mp) -> readMarkdownPlus (B.unpack $ B.drop 4 mp)

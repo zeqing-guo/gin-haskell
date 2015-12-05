@@ -14,3 +14,6 @@ ginConfig = ".gin/"
 
 ginRecordFile :: String
 ginRecordFile = ".gin/lastModificationTime"
+
+mediaDirectory :: String
+mediaDirectory = "media/"
