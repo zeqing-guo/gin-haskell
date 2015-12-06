@@ -19,13 +19,14 @@ import           Control.Applicative
 import           Control.Monad.Error
 
 import qualified Data.Text            as T
-
+import Data.Char (isDigit, isSpace)
 import           Data.Attoparsec.Text
 
 import           Prelude              hiding (takeWhile)
 
 data FrontMatter = FrontMatter {title :: T.Text
                                , date :: T.Text
+                               , issueId :: T.Text
                                , tag  :: [T.Text]}
                  deriving (Show)
 
@@ -48,39 +49,44 @@ parsePost = Post
 
 
 parseTitle :: Parser T.Text
-parseTitle = T.stripEnd <$ string "title:" <* takeWhile (== ' ') <*> takeWhile1 (/= '\n')
+parseTitle = T.stripEnd <$ string "title:" <* takeWhile isSpace <*> takeWhile1 (not . isSpace)
 
 parseTime :: Parser T.Text
-parseTime = T.stripEnd <$ string "date:" <* takeWhile (== ' ') <*> takeWhile1 (/= '\n')
+parseTime = T.stripEnd <$ string "date:" <* takeWhile isSpace <*> takeWhile1 (not . isSpace)
+
+parseIssueId :: Parser T.Text
+parseIssueId = T.stripEnd <$ string "issue id:" <* takeWhile isSpace <*> takeWhile isDigit
+               <|> takeWhile (not . isSpace) *> return ""
 
 parseTags :: Parser [T.Text]
-parseTags = map T.strip <$ string "tags:" <* takeWhile (== ' ') <*> (parseInline <|> parseBlock)
+parseTags = map T.strip <$ string "tags:" <* takeWhile isSpace <*> (parseInline <|> parseBlock)
             where
               parseInline = char '['
                             *> sepBy (takeWhile1 (\c -> c /= ',' && c /= ']')) (char ',')
                             <* char ']'
-                            <* takeWhile (== ' ')
+                            <* takeWhile isSpace
                             <* char '\n'
-              parseBlock = takeWhile (== ' ')
+              parseBlock = takeWhile isSpace
                            *> char '\n'
-                           *> takeWhile (== ' ')
+                           *> takeWhile isSpace
                            *> char '-'
-                           *> takeWhile (== ' ')
-                           *> sepBy (takeWhile1 (/= '\n')
-                                     <* char '\n')
+                           *> takeWhile isSpace
+                           *> sepBy (takeWhile1 (not . isSpace)
+                                     <* satisfy isSpace)
                                     (T.append
-                                     <$> takeWhile (== ' ')
+                                     <$> takeWhile isSpace
                                      <*> (T.cons
                                      <$> char '-'
-                                     <*> takeWhile1 (== ' ')))
+                                     <*> takeWhile1 isSpace))
 
 parseNone :: Parser [T.Text]
-parseNone = (string "tags" <* takeWhile (== ' ') <* char '\n'
-             <|> takeWhile (\c -> c == ' ' || c == '\n')) *> return []
+parseNone = (string "tags" <* takeWhile isSpace <* satisfy isSpace
+             <|> takeWhile (not . isSpace)) *> return []
 
 parseFrontMatter :: Parser FrontMatter
-parseFrontMatter = FrontMatter <$> parseTitle <* takeWhile1 (\c -> c == ' ' || c == '\n')
-                               <*> parseTime <* takeWhile1 (\c -> c == ' ' || c == '\n')
+parseFrontMatter = FrontMatter <$> parseTitle <* takeWhile1 (not . isSpace)
+                               <*> parseTime <* takeWhile1 (not . isSpace)
+                               <*> parseIssueId <* takeWhile (not . isSpace)
                                <*> (try parseTags <|> parseNone)
 
 

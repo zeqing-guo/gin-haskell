@@ -31,6 +31,7 @@ import qualified System.PosixCompat.Files     as PF (FileStatus, getFileStatus,
 import           Exception
 import qualified GinConfig                    as GC
 import           ParsePost
+import ParseConfig 
 
 -- | Get the existing blogs mate data from blogs.json
 -- data Blog = Blog {
@@ -83,9 +84,10 @@ readAndParse =
                     =$= CA.conduitParserEither parsePost
                     =$= awaitForever getPost
                     =$= processPost path
-         where
-           getPost (Left s) = error $ show s
-           getPost (Right (_, post)) = yield post
+     readAndParse
+       where
+         getPost (Left s) = error $ show s
+         getPost (Right (_, post)) = yield post
 
 processPost :: (Monad m, MonadResource m) => FilePath -> Conduit Post m Post
 processPost fp =
@@ -113,12 +115,20 @@ replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
        then replaceMarkdown mediaPath xs (p : ys)
        else do SD.copyFile unpackPicPath (mediaPath SF.</> SF.takeFileName unpackPicPath)
                replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
-replaceMarkdown mediaPath (x : xs) ys = replaceMarkdown mediaPath xs (x : ys)
+replaceMarkdown mediaPath (x : xs) ys = replaceMarkdown mediaPath xs (x : ys) -- add liquid
 
+commitIssues :: (Monad m, MonadResource m) => Consumer Post m ()
+commitIssues = 
+  do maybePost <- await
+     case maybePost of
+       Nothing -> do liftIO $ putStrLn "All posts have been updated."
+                     return ()
+       Just post -> return () -- add config token
 
-commitPosts :: IO ()
-commitPosts = runResourceT $ getRecModTime
-                             $= getChangedPost
-                             =$= readAndParse
-                             $$ C.printC
+commitPosts :: Config -> IO ()
+commitPosts config = runResourceT 
+                     $ getRecModTime
+                     $= getChangedPost
+                     =$= readAndParse
+                     $$ commitIssues
 
