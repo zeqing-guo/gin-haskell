@@ -18,11 +18,15 @@ module ParsePost (Post(..)
 import           Control.Applicative
 import           Control.Monad.Error
 
+import Data.Maybe (maybe)
 import qualified Data.Text            as T
 import Data.Char (isDigit, isSpace)
 import           Data.Attoparsec.Text
 
 import           Prelude              hiding (takeWhile)
+
+import ParseConfig
+import GinConfig
 
 data FrontMatter = FrontMatter {title :: T.Text
                                , date :: T.Text

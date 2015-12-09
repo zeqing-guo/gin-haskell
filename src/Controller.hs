@@ -17,6 +17,7 @@ import qualified Data.Conduit.Binary          as CB
 import qualified Data.Conduit.List            as CL
 import qualified Data.Conduit.Text            as CT
 import           Data.Foldable                (forM_)
+import           Data.Maybe                   (fromMaybe)
 import           Data.Monoid
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as TE
@@ -30,8 +31,8 @@ import qualified System.PosixCompat.Files     as PF (FileStatus, getFileStatus,
 
 import           Exception
 import qualified GinConfig                    as GC
+import           ParseConfig
 import           ParsePost
-import ParseConfig 
 
 -- | Get the existing blogs mate data from blogs.json
 -- data Blog = Blog {
@@ -118,15 +119,45 @@ replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
 replaceMarkdown mediaPath (x : xs) ys = replaceMarkdown mediaPath xs (x : ys) -- add liquid
 
 commitIssues :: (Monad m, MonadResource m) => Consumer Post m ()
-commitIssues = 
+commitIssues =
   do maybePost <- await
      case maybePost of
        Nothing -> do liftIO $ putStrLn "All posts have been updated."
                      return ()
        Just post -> return () -- add config token
 
+-- | refer to https://developer.github.com/v3/issues/
+generateJson :: Config -> Post -> T.Text
+generateJson config post =
+  "{\"title\":\""
+  `T.append` title (frontMatter post)
+  `T.append` "\","
+  `T.append` "\"body\":\""
+  `T.append` T.intercalate "" (map (showVal config) $ markdownPlus post)
+  `T.append` "\","
+  `T.append` tags (tag $ frontMatter post)
+  where
+    tags [] = ""
+    tags ts = T.intercalate "," (map (T.center 1 '"') ts)
+
+showVal :: Config -> MarkdownPlus -> T.Text
+showVal _ (Content t) = t
+showVal _ (InlineEquation i) = T.cons '$' $ T.snoc i '$'
+showVal _ (OutlineEquation o) = T.center 2 '$' o
+showVal config (Liquid "Copyright") =
+  fromMaybe "" $ copyright config
+showVal _ (Liquid _) = ""
+showVal config (Picture pa pp pt) =
+  "!["
+  `T.append` pa
+  `T.append` "]("
+  `T.append` (T.dropWhileEnd (== '/') (github_repo config) `T.snoc` '/' `T.append` pp)
+  `T.append` if pt == ""
+                then ")"
+                else " \"" `T.append` pt `T.append` "\")"
+
 commitPosts :: Config -> IO ()
-commitPosts config = runResourceT 
+commitPosts config = runResourceT
                      $ getRecModTime
                      $= getChangedPost
                      =$= readAndParse

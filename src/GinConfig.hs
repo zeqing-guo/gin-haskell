@@ -1,4 +1,9 @@
-module GinConfig where
+module GinConfig (configFile
+                 , postDirectory
+                 , postExample
+                 , ginConfig
+                 , ginRecordFile
+                 , mediaDirectory) where
 
 configFile :: String
 configFile = "_config.yml"

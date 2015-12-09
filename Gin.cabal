@@ -72,6 +72,7 @@ executable gin
                      , filepath >=1.4
                      , ghc-paths >=0.1
                      , http-conduit >= 2.1.8
+                     , http-types >= 0.9
                      , mtl >= 2.2.1
                      , process >=1.2
                      , resourcet >= 1.1.6
