@@ -60,7 +60,7 @@ initPost postName = do now <- getZonedTime
                                   putStrLn $ "Created: " ++ currentDirectory ++ thisPostName
 
 configTemplate :: String
-configTemplate = "github_token: your token\ncopyright: your copyright statement\n"
+configTemplate = "github_token: your token\ngithub_repo: your blog repo\ncopyright: your copyright statement\n"
 
 exampleTemplate :: String -> String
 exampleTemplate now = "---\ntitle: Hello World!\ndate: "

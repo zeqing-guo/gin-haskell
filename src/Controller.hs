@@ -2,37 +2,31 @@
 
 module Controller (commitPosts) where
 
-import qualified Conduit                      as C
-
-import           Control.Exception
 import           Control.Monad.Error
-import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Resource
 
-import           Data.Attoparsec.Text
-import qualified Data.ByteString.Char8        as BS
 import           Data.Conduit
+import Data.ByteString.Lazy (toStrict)
 import qualified Data.Conduit.Attoparsec      as CA
 import qualified Data.Conduit.Binary          as CB
-import qualified Data.Conduit.List            as CL
 import qualified Data.Conduit.Text            as CT
-import           Data.Foldable                (forM_)
+import qualified Data.List                    as DL
 import           Data.Maybe                   (fromMaybe)
-import           Data.Monoid
 import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as TE
+import qualified Data.Text.Encoding as TE
 
 import qualified System.Directory             as SD
 import qualified System.FilePath              as SF
 import           System.FilePath.Find
 import           System.Posix.Types           (EpochTime)
-import qualified System.PosixCompat.Files     as PF (FileStatus, getFileStatus,
+import qualified System.PosixCompat.Files     as PF (getFileStatus,
                                                      modificationTime)
 
-import           Exception
+import           ConnectGithub
 import qualified GinConfig                    as GC
 import           ParseConfig
 import           ParsePost
+import qualified RequestBody as RB
 
 -- | Get the existing blogs mate data from blogs.json
 -- data Blog = Blog {
@@ -78,6 +72,7 @@ getChangedPost = do t <- await
 readAndParse :: (Monad m, MonadResource m) => Conduit FilePath m Post
 readAndParse =
   do maybePath <- await
+     liftIO $ putStrLn "readAndParse"
      case maybePath of
        Nothing -> return ()
        Just path -> CB.sourceFile path
@@ -112,7 +107,7 @@ replaceMarkdown _ [] ys = return $ reverse ys
 replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
   let unpackPicPath = T.unpack path
       newPath = mediaPath SF.</> SF.takeFileName unpackPicPath
-  in if SF.equalFilePath unpackPicPath mediaPath
+  in if T.isPrefixOf "http" path || SF.equalFilePath unpackPicPath mediaPath
        then replaceMarkdown mediaPath xs (p : ys)
        else do SD.copyFile unpackPicPath (mediaPath SF.</> SF.takeFileName unpackPicPath)
                replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
@@ -122,23 +117,40 @@ commitIssues :: (Monad m, MonadResource m) => Consumer Post m ()
 commitIssues =
   do maybePost <- await
      case maybePost of
-       Nothing -> do liftIO $ putStrLn "All posts have been updated."
-                     return ()
-       Just post -> return () -- add config token
+       Nothing ->
+         do liftIO $ putStrLn "All posts have been updated."
+            return ()
+       Just post ->
+         do c <- liftIO $ parseConfig GC.configFile
+            case c of
+              Left e -> do liftIO $ print e
+                           return ()
+              Right config ->
+                do let j = generateJson config post
+                   r <- liftIO $ sendRequest (github_token config) j (url post config)
+                   -- liftIO $ print (url post config) pass test
+                   case r of
+                      Nothing -> return ()
+                      Just _ -> commitIssues
+       where
+         url post config = let xs = T.split (== '/') (github_repo config)
+                               iId = issueId (frontMatter post)
+                            in "https://api.github.com/repos/"
+                               `T.append` DL.last (init xs)
+                               `T.append` "/"
+                               `T.append` DL.last xs
+                               `T.append` "/issues"
+                               `T.append` if T.empty == iId
+                                             then ""
+                                             else "/" `T.append` iId
 
 -- | refer to https://developer.github.com/v3/issues/
 generateJson :: Config -> Post -> T.Text
-generateJson config post =
-  "{\"title\":\""
-  `T.append` title (frontMatter post)
-  `T.append` "\","
-  `T.append` "\"body\":\""
-  `T.append` T.intercalate "" (map (showVal config) $ markdownPlus post)
-  `T.append` "\","
-  `T.append` tags (tag $ frontMatter post)
+generateJson config post = TE.decodeUtf8 $ toStrict $ RB.encodeJson t c tags
   where
-    tags [] = ""
-    tags ts = T.intercalate "," (map (T.center 1 '"') ts)
+    t = title $ frontMatter post
+    c = T.intercalate "" (map (showVal config) $ markdownPlus post)
+    tags = tag $ frontMatter post
 
 showVal :: Config -> MarkdownPlus -> T.Text
 showVal _ (Content t) = t
@@ -156,10 +168,10 @@ showVal config (Picture pa pp pt) =
                 then ")"
                 else " \"" `T.append` pt `T.append` "\")"
 
-commitPosts :: Config -> IO ()
-commitPosts config = runResourceT
-                     $ getRecModTime
-                     $= getChangedPost
-                     =$= readAndParse
-                     $$ commitIssues
+commitPosts :: IO ()
+commitPosts = runResourceT
+              $ getRecModTime
+              $= getChangedPost
+              =$= readAndParse
+              $$ commitIssues
 
