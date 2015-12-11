@@ -2,9 +2,14 @@
 
 Do you want to use your github issues as a static website like [this](https://github.com/lifesinger/blog/issues)? Gin can help you!
 
-Gin is a project written in haskell which transforms your posts to github issues automatically.
+Gin is a project written in haskell which can parser your posts and transform them to github issues automatically.
 
-It works now, but there are some bugs for Windows users, and I need to add some functions in the future.
+It works now, but there are some bugs for Windows users, and I need to add some feature in the future.
+
+Features:
+
+- :white_check_mark: Support Markdown grammar that [Github support](https://help.github.com/articles/github-flavored-markdown/) (because I just upload your post with a litter midification :stuck_out_tongue_winking_eye:)
+- :white_check_mark: Support create and modify your issues post locally
 
 TODO list:
 - [ ] Support local picture uploading
