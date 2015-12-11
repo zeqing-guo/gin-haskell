@@ -4,7 +4,7 @@ Do you want to use your github issues as a static website like [this](https://gi
 
 Gin is a project written in haskell which can parser your posts and transform them to github issues automatically.
 
-It works now, but there are some bugs for Windows users, and I need to add some feature in the future.
+It works now, but there are some bugs for Windows users, and I need to add some features in the future.
 
 Features:
 
