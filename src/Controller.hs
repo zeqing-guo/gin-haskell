@@ -5,15 +5,16 @@ module Controller (commitPosts) where
 import           Control.Monad.Error
 import           Control.Monad.Trans.Resource
 
+import           Data.ByteString.Lazy         (toStrict)
+import qualified Data.ByteString.Char8 (BC)
 import           Data.Conduit
-import Data.ByteString.Lazy (toStrict)
 import qualified Data.Conduit.Attoparsec      as CA
 import qualified Data.Conduit.Binary          as CB
 import qualified Data.Conduit.Text            as CT
 import qualified Data.List                    as DL
 import           Data.Maybe                   (fromMaybe)
 import qualified Data.Text                    as T
-import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding           as TE
 
 import qualified System.Directory             as SD
 import qualified System.FilePath              as SF
@@ -26,30 +27,11 @@ import           ConnectGithub
 import qualified GinConfig                    as GC
 import           ParseConfig
 import           ParsePost
-import qualified RequestBody as RB
-
--- | Get the existing blogs mate data from blogs.json
--- data Blog = Blog {
---   blogName  :: T.Text
---   , md5     :: T.Text
---   , issueId :: Integer
---   } deriving (Show, Generic)
---
--- instance FromJSON Blog
---
--- getBlogsJson :: (Monad m, MonadIO m) => Conduit BS.ByteString m [Blog]
--- getBlogsJson = do rawBlog <- await
---                      case rawBlog of
---                        Nothing -> return ()
---                        Just blog -> case decodeStrict blog of
---                                       Nothing -> return ()
---                                       Just b -> do yield b
---                                                    getBlogsJson
---
+import qualified RequestBody                  as RB
 
 -- | Get the time of last modification of this blog from .gin/lastModificationTime
 getRecModTime :: IO EpochTime
-getRecModTime = PF.modificationTime 
+getRecModTime = PF.modificationTime
                 <$> PF.getFileStatus GC.ginRecordFile
 
 -- | Get the post list who were created or modified after the time store
@@ -58,12 +40,12 @@ getChangedPost :: EpochTime -> IO [FilePath]
 getChangedPost recordTime = findPosts recordTime GC.postDirectory
   where
     findPosts :: EpochTime -> String -> IO [FilePath]
-    findPosts t = find always 
+    findPosts t = find always
                   (extension ==? ".md"
                    &&? modificationTime >? t)
 
 readAndParse :: FilePath -> IO ()
-readAndParse path = runResourceT 
+readAndParse path = runResourceT
                     $ CB.sourceFile path
                     =$= CT.detectUtf
                     =$= CA.conduitParserEither parsePost
@@ -136,22 +118,37 @@ commitIssues =
                           then "POST"
                           else "PATCH"
 
+repalceIssueId :: Post -> BC.ByteString -> BC.ByteString
+repalceIssueId p iId = let fm = frontMatter p
+                           newFm = FrontMatter (title fm) (date fm) (issueId $ T.encodeUtf8 iId) (tag fm)
+                           newPost = Post newFm (markdownPlus p)
+                       in showValForFile newPost
+
+showValForFile :: Post -> BC.ByteString
+showValForFile p = "---\n" 
+                   `BC.append` showValFM (frontMatter p)
+                   "---\n"
+                   `BC.append` showValMP (markdownPlus p)
+
+showValFM :: FrontMatter -> BC.ByteString
+
+
 -- | refer to https://developer.github.com/v3/issues/
 generateJson :: Config -> Post -> T.Text
 generateJson config post = TE.decodeUtf8 $ toStrict $ RB.encodeJson t c tags
   where
     t = title $ frontMatter post
-    c = T.intercalate "" (map (showVal config) $ markdownPlus post)
+    c = T.intercalate "" (map (showValForJson config) $ markdownPlus post)
     tags = tag $ frontMatter post
 
-showVal :: Config -> MarkdownPlus -> T.Text
-showVal _ (Content t) = t
-showVal _ (InlineEquation i) = T.cons '$' $ T.snoc i '$'
-showVal _ (OutlineEquation o) = T.center 2 '$' o
-showVal config (Liquid "Copyright") =
+showValForJson :: Config -> MarkdownPlus -> T.Text
+showValForJson _ (Content t) = t
+showValForJson _ (InlineEquation i) = T.cons '$' $ T.snoc i '$'
+showValForJson _ (OutlineEquation o) = T.center 2 '$' o
+showValForJson config (Liquid "Copyright") =
   fromMaybe "" $ copyright config
-showVal _ (Liquid _) = ""
-showVal config (Picture pa pp pt) =
+showValForJson _ (Liquid _) = ""
+showValForJson config (Picture pa pp pt) =
   "!["
   `T.append` pa
   `T.append` "]("
@@ -163,7 +160,7 @@ showVal config (Picture pa pp pt) =
              else " \"" `T.append` pt `T.append` "\")"
 
 commitPosts :: IO ()
-commitPosts = 
+commitPosts =
   do recordTime <- getRecModTime
      posts <- getChangedPost recordTime
      mapM_ readAndParse posts

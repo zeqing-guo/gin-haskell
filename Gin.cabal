@@ -68,7 +68,7 @@ executable gin
                      , conduit-combinators >= 1.0.3
                      , conduit-extra >= 1.1.9.1
                      , directory >=1.2
-                     , filemanip >=0.3.6.3
+                     , filemanip >= 0.3.6.3
                      , filepath >=1.4
                      , ghc-paths >=0.1
                      , http-conduit >= 2.1.8
