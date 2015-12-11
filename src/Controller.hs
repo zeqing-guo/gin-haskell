@@ -48,42 +48,31 @@ import qualified RequestBody as RB
 --
 
 -- | Get the time of last modification of this blog from .gin/lastModificationTime
-getRecModTime :: (Monad m, MonadIO m) => Producer m EpochTime
-getRecModTime = do t <- liftIO (PF.modificationTime
-                                <$> PF.getFileStatus GC.ginRecordFile)
-                   yield t
+getRecModTime :: IO EpochTime
+getRecModTime = PF.modificationTime 
+                <$> PF.getFileStatus GC.ginRecordFile
 
 -- | Get the post list who were created or modified after the time store
 -- in .gin/lastModificationTime
-getChangedPost :: (Monad m, MonadIO m) => Conduit EpochTime m FilePath
-getChangedPost = do t <- await
-                    case t of
-                      Nothing -> return ()
-                      Just recordTime -> do xs <- findPosts recordTime GC.postDirectory
-                                            mapM_ yield xs
-                                            return ()
-                where
-                  findPosts :: (Monad m, MonadIO m) => EpochTime -> String -> m [FilePath]
-                  findPosts t postsPath = liftIO $ find always --(const False <$> always)
-                                                        (extension ==? ".md"
-                                                         &&? modificationTime >? t)
-                                                        postsPath
+getChangedPost :: EpochTime -> IO [FilePath]
+getChangedPost recordTime = findPosts recordTime GC.postDirectory
+  where
+    findPosts :: EpochTime -> String -> IO [FilePath]
+    findPosts t = find always 
+                  (extension ==? ".md"
+                   &&? modificationTime >? t)
 
-readAndParse :: (Monad m, MonadResource m) => Conduit FilePath m Post
-readAndParse =
-  do maybePath <- await
-     liftIO $ putStrLn "readAndParse"
-     case maybePath of
-       Nothing -> return ()
-       Just path -> CB.sourceFile path
+readAndParse :: FilePath -> IO ()
+readAndParse path = runResourceT 
+                    $ CB.sourceFile path
                     =$= CT.detectUtf
                     =$= CA.conduitParserEither parsePost
                     =$= awaitForever getPost
                     =$= processPost path
-     readAndParse
-       where
-         getPost (Left s) = error $ show s
-         getPost (Right (_, post)) = yield post
+                    $$ commitIssues
+  where
+    getPost (Left s) = error $ show s
+    getPost (Right (_, post)) = yield post
 
 processPost :: (Monad m, MonadResource m) => FilePath -> Conduit Post m Post
 processPost fp =
@@ -107,10 +96,10 @@ replaceMarkdown _ [] ys = return $ reverse ys
 replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
   let unpackPicPath = T.unpack path
       newPath = mediaPath SF.</> SF.takeFileName unpackPicPath
-  in if T.isPrefixOf "http" path || SF.equalFilePath unpackPicPath mediaPath
-       then replaceMarkdown mediaPath xs (p : ys)
-       else do SD.copyFile unpackPicPath (mediaPath SF.</> SF.takeFileName unpackPicPath)
-               replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
+  in if T.isPrefixOf "http" path || SF.equalFilePath (SF.takeDirectory unpackPicPath) mediaPath
+     then replaceMarkdown mediaPath xs (p : ys)
+     else do SD.copyFile unpackPicPath (mediaPath SF.</> SF.takeFileName unpackPicPath)
+             replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
 replaceMarkdown mediaPath (x : xs) ys = replaceMarkdown mediaPath xs (x : ys) -- add liquid
 
 commitIssues :: (Monad m, MonadResource m) => Consumer Post m ()
@@ -127,11 +116,11 @@ commitIssues =
                            return ()
               Right config ->
                 do let j = generateJson config post
-                   r <- liftIO $ sendRequest (github_token config) j (url post config)
+                   r <- liftIO $ sendRequest (github_token config) j (url post config) (method post)
                    -- liftIO $ print (url post config) pass test
                    case r of
                       Nothing -> return ()
-                      Just _ -> commitIssues
+                      Just issueId -> commitIssues
        where
          url post config = let xs = T.split (== '/') (github_repo config)
                                iId = issueId (frontMatter post)
@@ -143,6 +132,9 @@ commitIssues =
                                `T.append` if T.empty == iId
                                              then ""
                                              else "/" `T.append` iId
+         method post = if issueId (frontMatter post) == T.empty
+                          then "POST"
+                          else "PATCH"
 
 -- | refer to https://developer.github.com/v3/issues/
 generateJson :: Config -> Post -> T.Text
@@ -163,15 +155,15 @@ showVal config (Picture pa pp pt) =
   "!["
   `T.append` pa
   `T.append` "]("
-  `T.append` (T.dropWhileEnd (== '/') (github_repo config) `T.snoc` '/' `T.append` pp)
-  `T.append` if pt == ""
-                then ")"
-                else " \"" `T.append` pt `T.append` "\")"
+  `T.append` (if T.isPrefixOf "http" pp
+              then pp
+              else T.dropWhileEnd (== '/') (github_repo config) `T.snoc` '/' `T.append` pp)
+  `T.append` if pt == T.empty
+             then ")"
+             else " \"" `T.append` pt `T.append` "\")"
 
 commitPosts :: IO ()
-commitPosts = runResourceT
-              $ getRecModTime
-              $= getChangedPost
-              =$= readAndParse
-              $$ commitIssues
-
+commitPosts = 
+  do recordTime <- getRecModTime
+     posts <- getChangedPost recordTime
+     mapM_ readAndParse posts

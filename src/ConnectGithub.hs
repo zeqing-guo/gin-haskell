@@ -14,11 +14,12 @@ import           Network.HTTP.Types.Status (statusCode)
 
 
 
-sendRequest :: T.Text -> T.Text -> T.Text -> IO (Maybe BC.ByteString)
-sendRequest token body url = do
+sendRequest :: T.Text -> T.Text -> T.Text -> T.Text -> IO (Maybe BC.ByteString)
+sendRequest token body url method_ = do
   initReq <- parseUrl $ T.unpack url
-  let request = initReq { method = "Post"
-                        , requestHeaders = [("Content-Type", "application/json")
+  let request = initReq { method = encodeUtf8 method_
+                        , requestHeaders = [("User-Agent", "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:42.0) Gecko/20100101 Firefox/42.0")
+                                           , ("Content-Type", "application/json")
                                            , ("Authorization", "token " <> encodeUtf8 token)]
                         , requestBody = RequestBodyBS $ encodeUtf8 body
                     }
