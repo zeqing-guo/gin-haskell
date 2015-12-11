@@ -8,9 +8,9 @@ It works now, but there are some bugs for Windows users, and I need to add some 
 
 Features:
 
-:white_check_mark: Support Markdown grammar that [Github support](https://help.github.com/articles/github-flavored-markdown/) (because I just upload your post with a litter midification :stuck_out_tongue_winking_eye:)
+:white_check_mark: Support Markdown grammar that [Github supports](https://help.github.com/articles/github-flavored-markdown/) (because I just upload your post with a few midifications :stuck_out_tongue_winking_eye:)
 
-:white_check_mark: Support create and modify your issues post locally
+:white_check_mark: Support creating and modifying your issues posts locally
 
 TODO list:
 - [ ] Support local picture uploading
