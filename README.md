@@ -7,5 +7,5 @@ Gin is a project written in haskell which transforms your posts to github issues
 It works now, but there are some bugs for Windows users, and I need to add some functions in the future.
 
 TODO list:
-- [ ] Support local picture
-- [ ] Support some extension grammar
+- [ ] Support local picture uploading
+- [ ] Support some extension grammars
