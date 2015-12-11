@@ -63,8 +63,7 @@ parseTime :: Parser T.Text
 parseTime = T.stripEnd <$ string "date:" <* takeWhile (== ' ') <*> takeWhile1 (not . isControl)
 
 parseIssueId :: Parser T.Text
-parseIssueId = T.stripEnd <$ string "issue id:" <* takeWhile (== ' ') <*> takeWhile isDigit
-               <|> takeWhile (not . isSpace) *> return ""
+parseIssueId = T.stripEnd <$ string "issue id:" <* takeWhile (== ' ') <*> takeWhile1 isDigit
 
 parseTags :: Parser [T.Text]
 parseTags = map T.strip <$ string "tags:" <* takeWhile (== ' ') <*> (parseInline <|> parseBlock)
@@ -84,19 +83,19 @@ parseTags = map T.strip <$ string "tags:" <* takeWhile (== ' ') <*> (parseInline
                                      <$> char '-'
                                      <*> takeWhile1 isSpace))
 
-parseNone1 :: Parser T.Text
-parseNone1 = (try (string "issue id" <* takeWhile isSpace <* satisfy isSpace)
-              <|> takeWhile isSpace) *> return T.empty
+-- parseNone1 :: Parser T.Text
+-- parseNone1 = (try (string "issue id:" *> takeWhile isSpace)
+--               <|> takeWhile isSpace) *> return T.empty
 
-parseNone2 :: Parser [T.Text]
-parseNone2 = (try (string "tags" <* takeWhile isSpace <* satisfy isSpace)
-               <|> takeWhile isSpace) *> return []
+-- parseNone2 :: Parser [T.Text]
+-- parseNone2 = (try (string "tags:" <* takeWhile isSpace <* satisfy isSpace)
+--                <|> takeWhile isSpace) *> return []
 
 parseFrontMatter :: Parser FrontMatter
 parseFrontMatter = FrontMatter <$> parseTitle <* takeWhile1 isSpace
                                <*> parseTime <* takeWhile1 isSpace
-                               <*> (try parseIssueId <|> parseNone1) <* takeWhile isSpace
-                               <*> (try parseTags <|> parseNone2)
+                               <*> (try parseIssueId <|> return T.empty) <* takeWhile isSpace
+                               <*> (try parseTags <|> return [])
 
 
 parsePicture :: Parser MarkdownPlus
@@ -110,6 +109,7 @@ parsePicture = Picture <$ string "!["
                                 *> takeWhile (/= '"')
                                 <* takeWhile (/= ' ')
                                 <* char ')')
+
 plusGrammar :: (T.Text -> MarkdownPlus)
             -> Parser a
             -> Parser a

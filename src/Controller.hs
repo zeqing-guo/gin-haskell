@@ -2,11 +2,12 @@
 
 module Controller (commitPosts) where
 
+import           Control.Monad                (when)
 import           Control.Monad.Error
 import           Control.Monad.Trans.Resource
 
+import qualified Data.ByteString.Char8        as BC
 import           Data.ByteString.Lazy         (toStrict)
-import qualified Data.ByteString.Char8 (BC)
 import           Data.Conduit
 import qualified Data.Conduit.Attoparsec      as CA
 import qualified Data.Conduit.Binary          as CB
@@ -15,13 +16,15 @@ import qualified Data.List                    as DL
 import           Data.Maybe                   (fromMaybe)
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as TE
+import           Data.Time.Clock.POSIX        (getPOSIXTime)
 
 import qualified System.Directory             as SD
 import qualified System.FilePath              as SF
 import           System.FilePath.Find
 import           System.Posix.Types           (EpochTime)
 import qualified System.PosixCompat.Files     as PF (getFileStatus,
-                                                     modificationTime)
+                                                     modificationTime,
+                                                     setFileTimes)
 
 import           ConnectGithub
 import qualified GinConfig                    as GC
@@ -33,6 +36,11 @@ import qualified RequestBody                  as RB
 getRecModTime :: IO EpochTime
 getRecModTime = PF.modificationTime
                 <$> PF.getFileStatus GC.ginRecordFile
+
+setRecModTime :: IO ()
+setRecModTime = do t <- getPOSIXTime
+                   let newT = fromInteger $ round t
+                   PF.setFileTimes GC.ginRecordFile newT newT
 
 -- | Get the post list who were created or modified after the time store
 -- in .gin/lastModificationTime
@@ -51,7 +59,8 @@ readAndParse path = runResourceT
                     =$= CA.conduitParserEither parsePost
                     =$= awaitForever getPost
                     =$= processPost path
-                    $$ commitIssues
+                    =$= commitIssues
+                    $$ CB.sinkFile $ GC.ginConfig SF.</> SF.takeFileName path
   where
     getPost (Left s) = error $ show s
     getPost (Right (_, post)) = yield post
@@ -84,13 +93,11 @@ replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
              replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
 replaceMarkdown mediaPath (x : xs) ys = replaceMarkdown mediaPath xs (x : ys) -- add liquid
 
-commitIssues :: (Monad m, MonadResource m) => Consumer Post m ()
+commitIssues :: (Monad m, MonadResource m) => Conduit Post m BC.ByteString
 commitIssues =
   do maybePost <- await
      case maybePost of
-       Nothing ->
-         do liftIO $ putStrLn "All posts have been updated."
-            return ()
+       Nothing -> return ()
        Just post ->
          do c <- liftIO $ parseConfig GC.configFile
             case c of
@@ -98,11 +105,14 @@ commitIssues =
                            return ()
               Right config ->
                 do let j = generateJson config post
-                   r <- liftIO $ sendRequest (github_token config) j (url post config) (method post)
-                   -- liftIO $ print (url post config) pass test
+                   r <- liftIO $ sendRequest (github_token config) j (url post config) (method post) (title $ frontMatter post)
                    case r of
                       Nothing -> return ()
-                      Just issueId -> commitIssues
+                      Just iId -> if issueId (frontMatter post) == T.empty
+                                  then do yield $ replaceIssueId post iId
+                                          commitIssues
+                                  else do yield $ showValForFile post
+                                          commitIssues
        where
          url post config = let xs = T.split (== '/') (github_repo config)
                                iId = issueId (frontMatter post)
@@ -118,20 +128,54 @@ commitIssues =
                           then "POST"
                           else "PATCH"
 
-repalceIssueId :: Post -> BC.ByteString -> BC.ByteString
-repalceIssueId p iId = let fm = frontMatter p
-                           newFm = FrontMatter (title fm) (date fm) (issueId $ T.encodeUtf8 iId) (tag fm)
+replaceIssueId :: Post -> BC.ByteString -> BC.ByteString
+replaceIssueId p iId = let fm = frontMatter p
+                           newFm = FrontMatter (title fm) (date fm) (TE.decodeUtf8 iId) (tag fm)
                            newPost = Post newFm (markdownPlus p)
                        in showValForFile newPost
 
 showValForFile :: Post -> BC.ByteString
-showValForFile p = "---\n" 
+showValForFile p = "---\n"
                    `BC.append` showValFM (frontMatter p)
-                   "---\n"
-                   `BC.append` showValMP (markdownPlus p)
+                   `BC.append` "---\n"
+                   `BC.append` showValMP (markdownPlus p) ""
 
 showValFM :: FrontMatter -> BC.ByteString
+showValFM fm = "title: "
+               `BC.append` TE.encodeUtf8 (title fm)
+               `BC.append` "\ndate: "
+               `BC.append` TE.encodeUtf8 (date fm)
+               `BC.append` "\nissue id: "
+               `BC.append` TE.encodeUtf8 (issueId fm)
+               `BC.append` "\ntags: \n"
+               `BC.append` DL.foldl' (\acc t -> acc
+                                                `BC.append` "- "
+                                                `BC.append` TE.encodeUtf8 t
+                                                `BC.append` "\n")
+                                     ""
+                                     (tag fm)
 
+showValMP :: [MarkdownPlus] -> BC.ByteString -> BC.ByteString
+showValMP [] p = p
+showValMP (Content t : xs) p = showValMP xs (p `BC.append` TE.encodeUtf8 t)
+showValMP (InlineEquation i : xs) p = let encodeI = TE.encodeUtf8 i
+                                          newI = BC.cons '$' $ BC.snoc encodeI '$'
+                                      in showValMP xs (p `BC.append` newI)
+showValMP (OutlineEquation o : xs) p = let newO = T.center 2 '$' o
+                                           encodeO = TE.encodeUtf8 newO
+                                       in showValMP xs (p `BC.append` encodeO)
+showValMP (Liquid l : xs) p = let newL = "{{ " `T.append` l `T.append` " }}"
+                                  encodeL = TE.encodeUtf8 newL
+                              in showValMP xs (p `BC.append` encodeL)
+showValMP (Picture pa pp pt : xs) p =
+  let newP = "!["
+             `BC.append` TE.encodeUtf8 pa
+             `BC.append` "]("
+             `BC.append` TE.encodeUtf8 pp
+             `BC.append` TE.encodeUtf8 (if pt == T.empty
+                                        then ")"
+                                        else " \"" `T.append` pt `T.append` "\")")
+  in showValMP xs (p `BC.append` newP)
 
 -- | refer to https://developer.github.com/v3/issues/
 generateJson :: Config -> Post -> T.Text
@@ -159,8 +203,17 @@ showValForJson config (Picture pa pp pt) =
              then ")"
              else " \"" `T.append` pt `T.append` "\")"
 
+replaceFiles :: FilePath -> IO ()
+replaceFiles post =
+  do let postName = SF.takeFileName post
+         ginPostName = GC.ginConfig SF.</> postName
+     exist <- SD.doesFileExist ginPostName
+     when exist $ SD.renameFile ginPostName post >> setRecModTime
+
 commitPosts :: IO ()
 commitPosts =
   do recordTime <- getRecModTime
      posts <- getChangedPost recordTime
      mapM_ readAndParse posts
+     mapM_ replaceFiles posts
+     putStrLn "All posts have been updated."

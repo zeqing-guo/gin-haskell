@@ -14,8 +14,9 @@ import           Network.HTTP.Types.Status (statusCode)
 
 
 
-sendRequest :: T.Text -> T.Text -> T.Text -> T.Text -> IO (Maybe BC.ByteString)
-sendRequest token body url method_ = do
+sendRequest :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> IO (Maybe BC.ByteString)
+sendRequest token body url method_ title = do
+  print $ "Upload " `T.append` title `T.append` "..."
   initReq <- parseUrl $ T.unpack url
   let request = initReq { method = encodeUtf8 method_
                         , requestHeaders = [("User-Agent", "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:42.0) Gecko/20100101 Firefox/42.0")
@@ -23,8 +24,6 @@ sendRequest token body url method_ = do
                                            , ("Authorization", "token " <> encodeUtf8 token)]
                         , requestBody = RequestBodyBS $ encodeUtf8 body
                     }
-  liftIO $ putStrLn $ BC.unpack $ encodeUtf8 body
-  liftIO $ print request
   manager <- newManager tlsManagerSettings
   (httpLbs request manager >>= \res -> getId res) `E.catch`
         (\e@(StatusCodeException s _ _) -> processException s e)
@@ -32,11 +31,12 @@ sendRequest token body url method_ = do
     processException s e = case statusCode s of
                              400 -> putStrLn "problems parsing JSON request" >> return Nothing
                              401 -> putStrLn "token error" >> return Nothing
+                             404 -> putStrLn "please invoke token with *public_repo* scopes." >> return Nothing
                              _ -> print e >> return Nothing
     getId res =
       do let b = responseBody res
              (_, numWithTail) = BC.breakSubstring "\"number\": " $ BL.toStrict b
-             (issueId, _) = BC.breakSubstring "," numWithTail
+             issueId = last $ BC.split ' ' (fst $ BC.breakSubstring "," numWithTail)
          return $ Just issueId
 
 
