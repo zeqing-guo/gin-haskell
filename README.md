@@ -9,3 +9,5 @@ It works now, but there are some bugs for Windows users, and I need to add some 
 TODO list:
 - [ ] Support local picture uploading
 - [ ] Support some extension grammars
+
+BTW, the name **Gin** is from [Gintama (銀魂)](https://en.wikipedia.org/wiki/Gin_Tama) which is a funny comic. I hope you like it :smiling_imp:
