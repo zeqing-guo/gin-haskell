@@ -52,6 +52,12 @@ Upload a new post...
 All posts have been updated
 ```
 
+Note that you need to fill the _config.yml file to make gin work.
+
+You can get a github token from [https://github.com/settings/tokens](https://github.com/settings/tokens), and `public_repo` is enough.
+
+You can insert your copyright statement using `{{ copyright }}`.
+
 ## TODO List
 
 1. Test on Windows
