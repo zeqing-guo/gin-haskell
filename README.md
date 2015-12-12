@@ -16,6 +16,8 @@ Gin is a project written in haskell which can parser your posts and transform th
 
 :white_check_mark: Support some extension grammars
 
+There is an [example](https://github.com/zeqing-guo/gin-haskell/issues/2).
+
 ## Installation
 
 Please install [cabal](https://www.haskell.org/cabal/download.html) or [haskell-platform](https://www.haskell.org/platform/) first.
@@ -48,7 +50,6 @@ Create post/2015-12-12 a new post.md
 ➜  blog git:(master) ✗ gin -p 
 Upload a new post...
 All posts have been updated
-
 ```
 
 ## TODO List

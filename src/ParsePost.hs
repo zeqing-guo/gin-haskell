@@ -31,7 +31,7 @@ data FrontMatter = FrontMatter {title    :: T.Text
                  deriving (Show)
 
 data MarkdownPlus = Content T.Text
-                  | Picture {picAlt :: T.Text, picPath :: T.Text, picTitle :: T.Text}
+                  -- | Picture {picAlt :: T.Text, picPath :: T.Text, picTitle :: T.Text}
                   | InlineEquation T.Text
                   | OutlineEquation T.Text
                   | Liquid T.Text
@@ -78,14 +78,6 @@ parseTags = map T.strip <$ string "tags:" <* takeWhile (== ' ') <*> (parseInline
                                      <$> char '-'
                                      <*> takeWhile1 isSpace))
 
--- parseNone1 :: Parser T.Text
--- parseNone1 = (try (string "issue id:" *> takeWhile isSpace)
---               <|> takeWhile isSpace) *> return T.empty
-
--- parseNone2 :: Parser [T.Text]
--- parseNone2 = (try (string "tags:" <* takeWhile isSpace <* satisfy isSpace)
---                <|> takeWhile isSpace) *> return []
-
 parseFrontMatter :: Parser FrontMatter
 parseFrontMatter = FrontMatter <$> parseTitle <* takeWhile1 isSpace
                                <*> parseTime <* takeWhile1 isSpace
@@ -93,17 +85,17 @@ parseFrontMatter = FrontMatter <$> parseTitle <* takeWhile1 isSpace
                                <*> (try parseTags <|> return [])
 
 
-parsePicture :: Parser MarkdownPlus
-parsePicture = Picture <$ string "!["
-                       <*> takeWhile (/= ']')
-                       <* string "]("
-                       <*> (T.stripEnd
-                            <$> takeWhile1 (\c -> c /= '"' && c /= ')'))
-                       <*> (try (char ')' *> return "")
-                            <|> char '"'
-                                *> takeWhile (/= '"')
-                                <* takeWhile (/= ' ')
-                                <* char ')')
+-- parsePicture :: Parser MarkdownPlus
+-- parsePicture = Picture <$ string "!["
+--                        <*> takeWhile (/= ']')
+--                        <* string "]("
+--                        <*> (T.stripEnd
+--                             <$> takeWhile1 (\c -> c /= '"' && c /= ')'))
+--                        <*> (try (char ')' *> return "")
+--                             <|> char '"'
+--                                 *> takeWhile (/= '"')
+--                                 <* takeWhile (/= ' ')
+--                                 <* char ')')
 
 plusGrammar :: (T.Text -> MarkdownPlus)
             -> Parser a
@@ -133,8 +125,7 @@ parseContent = Content
                                          && c /= '\\')))
 
 parseMarkdownPlus :: Parser [MarkdownPlus]
-parseMarkdownPlus = many $ try parsePicture
-                           <|> try parseOutlineEquation
+parseMarkdownPlus = many $ try parseOutlineEquation
                            <|> try parseInlineEquation
                            <|> try parseLiquid
                            <|> parseContent

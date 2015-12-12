@@ -11,6 +11,7 @@ import           Data.Text.Encoding
 import qualified Data.Text.IO as TIO
 import           Network.HTTP.Conduit
 import           Network.HTTP.Types.Status (statusCode)
+import System.Exit
 
 
 
@@ -29,10 +30,10 @@ sendRequest token body url method_ title = do
         (\e@(StatusCodeException s _ _) -> processException s e)
   where
     processException s e = case statusCode s of
-                             400 -> putStrLn "problems parsing JSON request" >> return Nothing
-                             401 -> putStrLn "token error" >> return Nothing
-                             404 -> putStrLn "please invoke token with *public_repo* scopes." >> return Nothing
-                             _ -> print e >> return Nothing
+                             400 -> putStrLn "problems parsing JSON request" >> exitFailure
+                             401 -> putStrLn "token error" >> exitFailure
+                             404 -> putStrLn "please invoke token with *public_repo* scopes." >> exitFailure
+                             _ -> print e >> exitFailure
     getId res =
       do let b = responseBody res
              (_, numWithTail) = BC.breakSubstring "\"number\": " $ BL.toStrict b

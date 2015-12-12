@@ -2,7 +2,7 @@
 
 module Controller (commitPosts) where
 
-import           Control.Monad                (when)
+import           Control.Monad                (unless, when)
 import           Control.Monad.Error
 import           Control.Monad.Trans.Resource
 
@@ -24,7 +24,7 @@ import qualified System.Directory             as SD
 import qualified System.FilePath              as SF
 import           System.FilePath.Find
 import           System.Posix.Types           (EpochTime)
-import qualified System.PosixCompat.Files     as PF (getFileStatus,
+import qualified System.PosixCompat.Files     as PF (fileSize, getFileStatus,
                                                      modificationTime,
                                                      setFileTimes)
 
@@ -85,7 +85,7 @@ commitIssues =
                                   else do yield $ showValForFile post
                                           commitIssues
        where
-         url post config = let xs = T.split (== '/') (github_repo config)
+         url post config = let xs = T.split (== '/') (T.dropWhileEnd (== '/') $ github_repo config)
                                iId = issueId (frontMatter post)
                             in "https://api.github.com/repos/"
                                `T.append` DL.last (init xs)
@@ -170,9 +170,9 @@ showValMP (OutlineEquation o : xs) p = let newO = "$$" `T.append` o `T.append` "
 showValMP (Liquid l : xs) p = let newL = "{{ " `T.append` l `T.append` " }}"
                                   encodeL = TE.encodeUtf8 newL
                               in showValMP xs (p `BC.append` encodeL)
-showValMP (Picture pa pp pt : xs) p =
-  let newP = TE.encodeUtf8 $ generatePicture pa pp pt
-  in showValMP xs (p `BC.append` newP)
+-- showValMP (Picture pa pp pt : xs) p =
+--   let newP = TE.encodeUtf8 $ generatePicture pa pp pt
+--   in showValMP xs (p `BC.append` newP)
 
 -- | refer to https://developer.github.com/v3/issues/
 generateJson :: Config -> Post -> T.Text
@@ -187,23 +187,25 @@ showValForJson :: Config -> MarkdownPlus -> T.Text
 showValForJson _ (Content t) = t
 showValForJson _ (InlineEquation i) = generatePicture i (equationUrl i "\\normal ") T.empty
 showValForJson _ (OutlineEquation o) = "<br>"
-                                       `T.append` generatePicture o (equationUrl o "\\large ") T.empty
+                                       `T.append` generatePicture o (equationUrl o "\\normal ") T.empty
                                        `T.append` "<br>"
 showValForJson config (Liquid "copyright") =
   fromMaybe "" $ copyright config
 showValForJson _ (Liquid _) = ""
-showValForJson config (Picture pa pp pt) =
-  let newPp = if T.isPrefixOf "http://" pp || T.isPrefixOf "https://" pp
-              then pp
-              else T.dropWhileEnd (== '/') (github_repo config) `T.snoc` '/' `T.append` pp
-  in generatePicture pa newPp pt
+-- showValForJson config (Picture pa pp pt) =
+--   let newPp = if T.isPrefixOf "http://" pp || T.isPrefixOf "https://" pp
+--               then pp
+--               else T.dropWhileEnd (== '/') (github_repo config) `T.snoc` '/' `T.append` pp
+--   in generatePicture pa newPp pt
 
 replaceFiles :: FilePath -> IO ()
 replaceFiles post =
   do let postName = SF.takeFileName post
          ginPostName = GC.ginConfig SF.</> postName
-     exist <- SD.doesFileExist ginPostName
-     when exist $ SD.renameFile ginPostName post >> setRecModTime
+     fs <- PF.fileSize <$> PF.getFileStatus ginPostName 
+     unless (fs == 0) $ 
+       do exist <- SD.doesFileExist ginPostName
+          when exist $ SD.renameFile ginPostName post >> setRecModTime
 
 -- | Get the time of last modification of this blog from .gin/lastModificationTime
 getRecModTime :: IO EpochTime
@@ -227,11 +229,11 @@ getChangedPost recordTime = findPosts recordTime GC.postDirectory
 
 replaceMarkdown :: FilePath -> [MarkdownPlus] -> [MarkdownPlus] -> IO [MarkdownPlus]
 replaceMarkdown _ [] ys = return $ reverse ys
-replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
-  let unpackPicPath = T.unpack path
-      newPath = mediaPath SF.</> SF.takeFileName unpackPicPath
-  in if T.isPrefixOf "http://" path || T.isPrefixOf "https://" path
-     then replaceMarkdown mediaPath xs (p : ys)
-     else do SD.copyFile unpackPicPath (mediaPath SF.</> SF.takeFileName unpackPicPath)
-             replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
+-- replaceMarkdown mediaPath (p@(Picture alt path t) : xs) ys =
+--   let unpackPicPath = T.unpack path
+--       newPath = mediaPath SF.</> SF.takeFileName unpackPicPath
+--   in if T.isPrefixOf "http://" path || T.isPrefixOf "https://" path
+--      then replaceMarkdown mediaPath xs (p : ys)
+--      else do SD.copyFile unpackPicPath (mediaPath SF.</> SF.takeFileName unpackPicPath)
+--              replaceMarkdown mediaPath xs (Picture alt (T.pack newPath) t : ys)
 replaceMarkdown mediaPath (x : xs) ys = replaceMarkdown mediaPath xs (x : ys) -- add liquid

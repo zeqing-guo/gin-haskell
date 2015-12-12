@@ -166,36 +166,12 @@ exampleTemplate now = "---\n\
         \2. list item 2\n\
         \3. list item 3\n\n\
         \> Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\n\
-        \![](https://en.wikipedia.org/wiki/Haskell_%28programming_language%29#/media/File:Haskell-Logo.svg)\n\n\
-        \<table>\n\
-        \    <thead>\n\
-        \        <tr>\n\
-        \            <th>Name</th>\n\
-        \            <th>Age</th>\n\
-        \            <th>Fruit</th>\n\
-        \        </tr>\n\
-        \    </thead>\n\
-        \    <tbody>\n\
-        \        <tr>\n\
-        \            <td>Alex</td>\n\
-        \            <td>22</td>\n\
-        \            <td>Apple</td>\n\
-        \        </tr>\n\
-        \        <tr>\n\
-        \            <td>Bran\
-        \</td>\n\
-        \            <td>20</td>\n\
-        \            <td>Oran\
-        \ge</td>\n\
-        \        </tr>\n\
-        \        <tr>\n\
-        \            <td>Mike</td>\n\
-        \            <td>21</td>\n\
-        \            <td>Waltermelon\
-        \</td>\n\
-        \        </tr>\n\
-        \    </tbody>\n\
-        \</table>\n\n\
+        \![](https://wiki.haskell.org/wikiupload/4/4a/HaskellLogoStyPreview-1.png)\n\n\
+        \| Tables        | Are           | Cool  |\n\
+        \| ------------- |:-------------:| -----:|\n\
+        \| col 3 is      | right-aligned | $1600 |\n\
+        \| col 2 is      | centered      |   $12 |\n\
+        \| zebra stripes | are neat      |    $1 |\n\n\
         \This is an inline equation: $E=mc^2$\n\n\
         \A big one: $$\\oint_{(x,y)\\in C} x^3\\, dx + 4y^2\\, dy$$\n\n\
         \```haskell\n\
