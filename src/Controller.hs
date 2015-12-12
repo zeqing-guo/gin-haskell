@@ -105,7 +105,7 @@ commitPosts =
      posts <- getChangedPost recordTime
      mapM_ readAndParse posts
      mapM_ replaceFiles posts
-     putStrLn "All posts have been updated."
+     putStrLn "All posts have been updated\n"
 
 --------------------------------------- Util function ---------------------------------------
 

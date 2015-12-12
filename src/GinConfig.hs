@@ -5,20 +5,22 @@ module GinConfig (configFile
                  , ginRecordFile
                  , mediaDirectory) where
 
+import System.FilePath.Posix
+
 configFile :: String
 configFile = "_config.yml"
 
 postDirectory :: String
-postDirectory = "post/"
+postDirectory = "post"
 
 postExample :: String
-postExample = "post/hello-world.md"
+postExample = "post" </> "hello-world.md"
 
 ginConfig :: String
-ginConfig = ".gin/"
+ginConfig = ".gin"
 
 ginRecordFile :: String
-ginRecordFile = ".gin/lastModificationTime"
+ginRecordFile = ".gin" </> "lastModificationTime"
 
 mediaDirectory :: String
-mediaDirectory = "media/"
+mediaDirectory = "media"
