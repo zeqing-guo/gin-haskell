@@ -3,12 +3,12 @@
 module ConnectGithub where
 
 import qualified Control.Exception         as E
-import           Control.Monad.IO.Class
 import qualified Data.ByteString.Char8     as BC
 import qualified Data.ByteString.Lazy      as BL
 import           Data.Monoid
 import qualified Data.Text                 as T
 import           Data.Text.Encoding
+import qualified Data.Text.IO as TIO
 import           Network.HTTP.Conduit
 import           Network.HTTP.Types.Status (statusCode)
 
@@ -16,7 +16,7 @@ import           Network.HTTP.Types.Status (statusCode)
 
 sendRequest :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text -> IO (Maybe BC.ByteString)
 sendRequest token body url method_ title = do
-  print $ "Upload " `T.append` title `T.append` "..."
+  TIO.putStrLn $ "Upload " `T.append` title `T.append` "..."
   initReq <- parseUrl $ T.unpack url
   let request = initReq { method = encodeUtf8 method_
                         , requestHeaders = [("User-Agent", "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:42.0) Gecko/20100101 Firefox/42.0")

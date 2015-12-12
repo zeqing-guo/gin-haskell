@@ -60,7 +60,8 @@ executable gin
   other-extensions:    ScopedTypeVariables, RankNTypes, BangPatterns, ViewPatterns, ForeignFunctionInterface
   
   -- Other library packages from which modules are imported.
-  build-depends:       aeson >= 0.10.0.0
+  build-depends:       HTTP >= 4000.2.20
+                     , aeson >= 0.10.0.0
                      , attoparsec >= 0.13.0.1
                      , base >=4.8
                      , bytestring >=0.10

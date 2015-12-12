@@ -12,8 +12,11 @@ Features:
 
 :white_check_mark: Support creating and modifying your issues posts locally
 
+:white_check_mark: Support LaTeX grammar
+
+:white_check_mark: support tagging your posts
+
 TODO list:
-- [ ] Support local picture uploading
 - [ ] Support some extension grammars
 
 BTW, the name **Gin** is from [Gintama (銀魂)](https://en.wikipedia.org/wiki/Gin_Tama) which is a funny comic. I hope you'll like it :smiling_imp:

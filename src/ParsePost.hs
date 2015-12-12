@@ -18,21 +18,16 @@ module ParsePost (Post(..)
 import           Control.Applicative
 import           Control.Monad.Error
 
-import Data.Maybe (maybe)
-import qualified Data.Text            as T
-import Data.List (elem)
-import Data.Char (isDigit, isSpace)
 import           Data.Attoparsec.Text
+import           Data.Char            (isDigit, isSpace)
+import qualified Data.Text            as T
 
 import           Prelude              hiding (takeWhile)
 
-import ParseConfig
-import GinConfig
-
-data FrontMatter = FrontMatter {title :: T.Text
-                               , date :: T.Text
+data FrontMatter = FrontMatter {title    :: T.Text
+                               , date    :: T.Text
                                , issueId :: T.Text
-                               , tag  :: [T.Text]}
+                               , tag     :: [T.Text]}
                  deriving (Show)
 
 data MarkdownPlus = Content T.Text
@@ -114,10 +109,12 @@ plusGrammar :: (T.Text -> MarkdownPlus)
             -> Parser a
             -> Parser a
             -> Parser MarkdownPlus
-plusGrammar f l r = f . T.pack <$ l <*> manyTill anyChar r
+plusGrammar f l r = f . T.strip <$> T.pack <$ l <*> manyTill anyChar r
 
 parseInlineEquation :: Parser MarkdownPlus
-parseInlineEquation = plusGrammar InlineEquation (char '$') (char '$')
+parseInlineEquation = InlineEquation . T.pack 
+                      <$ string "$" 
+                      <*> manyTill (satisfy $ not . isControl) (string "$")
 
 parseOutlineEquation :: Parser MarkdownPlus
 parseOutlineEquation = plusGrammar OutlineEquation (string "$$") (string "$$")
@@ -126,48 +123,21 @@ parseLiquid :: Parser MarkdownPlus
 parseLiquid = plusGrammar Liquid (string "{{") (string "}}")
 
 parseContent :: Parser MarkdownPlus
-parseContent = Content <$> (T.cons
-                            <$> anyChar
-                            <*> takeWhile (\c -> c /= '!'
-                                                 && c /= '$'
-                                                 && c /= '{'))
+parseContent = Content
+               <$> (try (char '\\' *> (T.cons <$> anyChar <*> return T.empty))
+               <|> (T.cons
+                    <$> anyChar
+                    <*> takeWhile (\c -> c /= '!'
+                                         && c /= '$'
+                                         && c /= '{'
+                                         && c /= '\\')))
 
 parseMarkdownPlus :: Parser [MarkdownPlus]
 parseMarkdownPlus = many $ try parsePicture
-                           <|> try parseInlineEquation
                            <|> try parseOutlineEquation
+                           <|> try parseInlineEquation
                            <|> try parseLiquid
                            <|> parseContent
-
--- notSpace :: Parser Char
--- notSpace = satisfy $ not . isSpace
-
--- notChar :: Char -> Parser Char
--- notChar c = satisfy (/= c)
-
--- parseContent :: Parser MarkdownPlus
--- parseContent = do
---   x <- anyChar
---   xs <- many (noneOf "!${")
---   return $ Content $ T.pack (x : xs)
-
-
--- readFrontMatter :: String -> Either ParseError [FrontMatter]
--- readFrontMatter = parse parseFrontMatter "gin"
-
--- readMarkdownPlus :: String -> Either ParseError [MarkdownPlus]
--- readMarkdownPlus = parse parseMarkdownPlus "gin"
-
--- readPost :: String -> ThrowsError Post
--- readPost post = case B.breakSubstring (B.pack "---\n") (B.pack post) of
---   ("", rest) -> case B.breakSubstring (B.pack "---\n") (B.drop 4 rest) of
---     ("", _) -> throwError $ Parser "nothing find in front matter"
---     (fm, mp) -> case readFrontMatter $ B.unpack fm of
---       Left err -> throwError $ Parser $ show err
---       Right fms -> case readMarkdownPlus $ B.unpack mp of
---         Left err -> throwError $ Parser $ show err
---         Right mps -> return $ Post fms mps
---   _ -> throwError $ Parser "\"gin\" (line 1):\nexpecting \"---\""
 
 -- --------------------- Test -------------------------------------
 
