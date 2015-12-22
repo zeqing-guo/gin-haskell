@@ -24,14 +24,14 @@ Please install [cabal](https://www.haskell.org/cabal/download.html) or [haskell-
 
 ```
 git clone https://github.com/zeqing-guo/gin-haskell.git & cd gin-haskell
-cabal sandbox init
+cabal sandbox init --only-dependencies
 cabal install
 ```
 
 ## Usage
 
 ```
-➜  gin-haskell git:(master) gin -h
+➜  gin -h
 Usage: gin [-inphv] [file]
   -i DIR   --init=DIR  Create a blog including a config file and an example post
   -n FILE  --new=FILE  Create a post
@@ -39,15 +39,15 @@ Usage: gin [-inphv] [file]
   -h       --help      Print this help message
   -v       --version   Show gin's version
 
-➜  gin-haskell git:(master) ✗ gin -i blog
+➜  gin -i blog
 Copy data to blog
 
-➜  gin-haskell git:(master) ✗ cd blog 
+➜  cd blog 
 ➜  blog git:(master) ✗ gin -n "a new post"
 Create post/2015-12-12 a new post.md
 
-➜  blog git:(master) ✗ echo "\n> hello world" >> post/2015-12-12\ a\ new\ post.md
-➜  blog git:(master) ✗ gin -p 
+➜  echo "\n> hello world" >> post/2015-12-12\ a\ new\ post.md
+➜  gin -p 
 Upload a new post...
 All posts have been updated
 ```
