@@ -43,7 +43,7 @@ Usage: gin [-inphv] [file]
 Copy data to blog
 
 ➜  cd blog 
-➜  blog git:(master) ✗ gin -n "a new post"
+➜  gin -n "a new post"
 Create post/2015-12-12 a new post.md
 
 ➜  echo "\n> hello world" >> post/2015-12-12\ a\ new\ post.md
