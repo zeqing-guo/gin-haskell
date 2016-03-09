@@ -104,8 +104,8 @@ plusGrammar :: (T.Text -> MarkdownPlus)
 plusGrammar f l r = f . T.strip <$> T.pack <$ l <*> manyTill anyChar r
 
 parseInlineEquation :: Parser MarkdownPlus
-parseInlineEquation = InlineEquation . T.pack 
-                      <$ string "$" 
+parseInlineEquation = InlineEquation . T.pack
+                      <$ string "$"
                       <*> manyTill (satisfy $ not . isControl) (string "$")
 
 parseOutlineEquation :: Parser MarkdownPlus
@@ -115,14 +115,10 @@ parseLiquid :: Parser MarkdownPlus
 parseLiquid = plusGrammar Liquid (string "{{") (string "}}")
 
 parseContent :: Parser MarkdownPlus
-parseContent = Content
-               <$> (try (char '\\' *> (T.cons <$> anyChar <*> return T.empty))
-               <|> (T.cons
-                    <$> anyChar
-                    <*> takeWhile (\c -> c /= '!'
-                                         && c /= '$'
-                                         && c /= '{'
-                                         && c /= '\\')))
+parseContent = Content <$> (T.cons
+                            <$> anyChar
+                            <*> takeWhile (\c -> c /= '$'
+                                                 && c /= '{'))
 
 parseMarkdownPlus :: Parser [MarkdownPlus]
 parseMarkdownPlus = many $ try parseOutlineEquation
